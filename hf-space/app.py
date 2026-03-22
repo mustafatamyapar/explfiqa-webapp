@@ -48,7 +48,8 @@ async def embed(file: UploadFile = File(...)):
     with torch.no_grad():
         outputs = model.get_image_features(**inputs)
 
-    embedding = outputs[0].numpy()
+    # outputs shape: (1, 512) — squeeze to (512,), then L2-normalize
+    embedding = outputs.squeeze(0).numpy()
     embedding = embedding / np.linalg.norm(embedding)
 
     return {"embedding": embedding.tolist()}
