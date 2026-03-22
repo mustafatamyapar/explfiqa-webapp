@@ -3,4 +3,5 @@ transformers
 Pillow
 fastapi
 uvicorn[standard]
+python-multipart
 numpy
