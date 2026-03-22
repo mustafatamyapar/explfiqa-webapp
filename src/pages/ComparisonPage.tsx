@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ImageUploader } from "@/components/ImageUploader";
@@ -9,6 +9,7 @@ import {
   useQualityAnalysis,
   type ComparisonResult,
 } from "@/hooks/useQualityAnalysis";
+import { loadComparisonSamples, SAMPLE_URLS } from "@/lib/samples";
 import { Loader2 } from "lucide-react";
 
 export function ComparisonPage() {
@@ -20,6 +21,18 @@ export function ComparisonPage() {
   const [previewA, setPreviewA] = useState<string | undefined>();
   const [previewB, setPreviewB] = useState<string | undefined>();
   const [result, setResult] = useState<ComparisonResult | null>(null);
+  const [samplesLoaded, setSamplesLoaded] = useState(false);
+
+  // Pre-load sample images on mount (image 1 vs image 3)
+  useEffect(() => {
+    loadComparisonSamples().then(([a, b]) => {
+      setFileA(a);
+      setFileB(b);
+      setPreviewA(SAMPLE_URLS[0]);
+      setPreviewB(SAMPLE_URLS[2]);
+      setSamplesLoaded(true);
+    });
+  }, []);
 
   const handleSelectA = useCallback((file: File) => {
     setFileA(file);
@@ -72,6 +85,11 @@ export function ComparisonPage() {
           contribution difference are outlined in{" "}
           <span className="text-red-600 font-semibold">red</span>.
         </p>
+        {samplesLoaded && !result && (
+          <p className="text-xs text-muted-foreground mt-1 italic">
+            Sample images are pre-loaded — click Compare to try, or upload your own.
+          </p>
+        )}
       </div>
 
       {/* Upload area */}

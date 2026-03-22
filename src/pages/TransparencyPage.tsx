@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ImageUploader } from "@/components/ImageUploader";
@@ -10,6 +10,7 @@ import {
   useQualityAnalysis,
   type TransparencyResult,
 } from "@/hooks/useQualityAnalysis";
+import { loadSampleImages, SAMPLE_URLS } from "@/lib/samples";
 import { Loader2 } from "lucide-react";
 
 export function TransparencyPage() {
@@ -31,6 +32,16 @@ export function TransparencyPage() {
     null,
     null,
   ]);
+  const [samplesLoaded, setSamplesLoaded] = useState(false);
+
+  // Pre-load sample images on mount
+  useEffect(() => {
+    loadSampleImages().then((files) => {
+      setImageFiles(files);
+      setPreviewUrls(SAMPLE_URLS.map((url) => url));
+      setSamplesLoaded(true);
+    });
+  }, []);
 
   const handleImageSelected = useCallback(
     (index: number, file: File) => {
@@ -97,6 +108,11 @@ export function TransparencyPage() {
           highlighted; the top-3 contributing categories are outlined in{" "}
           <span className="text-red-600 font-semibold">red</span>.
         </p>
+        {samplesLoaded && !hasResults && (
+          <p className="text-xs text-muted-foreground mt-1 italic">
+            Sample images are pre-loaded — click Analyze to try, or upload your own.
+          </p>
+        )}
       </div>
 
       {/* Upload area */}
