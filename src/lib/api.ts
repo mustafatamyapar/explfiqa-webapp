@@ -1,11 +1,8 @@
 const HF_SPACE_URL = import.meta.env.VITE_HF_SPACE_URL || "https://mustafatamyapar-explfiqa-api.hf.space";
 
-const MAX_RETRIES = 3;
-const RETRY_DELAY = 5000;
-const REQUEST_TIMEOUT = 8000;
-
-// Track whether the server is reachable so we skip retries after first failure
-let serverReachable: boolean | null = null;
+const MAX_RETRIES = 5;
+const RETRY_DELAY = 6000;
+const REQUEST_TIMEOUT = 30000; // 30s — CLIP on CPU + HF proxy can be slow
 
 /**
  * Generate a deterministic pseudo-random embedding from an image file.
@@ -38,19 +35,13 @@ export async function getImageEmbedding(
   imageFile: File,
   onStatus?: (status: string) => void
 ): Promise<Float32Array> {
-  // If we already know server is down, go straight to mock
-  if (serverReachable === false) {
-    onStatus?.("Using demo mode (server unavailable)");
-    return generateMockEmbedding(imageFile);
-  }
-
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
-      if (attempt > 0) {
+      if (attempt === 0) {
+        onStatus?.("Sending image to server...");
+      } else {
         onStatus?.(`Server is waking up, retrying (${attempt + 1}/${MAX_RETRIES})...`);
         await new Promise((r) => setTimeout(r, RETRY_DELAY));
-      } else {
-        onStatus?.("Computing embedding...");
       }
 
       const formData = new FormData();
@@ -72,38 +63,38 @@ export async function getImageEmbedding(
       }
 
       const data = await res.json();
-      serverReachable = true;
+      onStatus?.("Embedding received!");
       return new Float32Array(data.embedding);
     } catch {
       if (attempt === 0) {
-        onStatus?.("Server is waking up (this may take ~30s)...");
+        onStatus?.("Server is waking up (free tier, may take ~30-60s)...");
       }
     }
   }
 
   // Fallback to mock embedding
-  serverReachable = false;
-  console.warn("HF Space unavailable, using mock embedding for demo");
+  console.warn("HF Space unavailable after all retries, using mock embedding for demo");
   onStatus?.("Using demo mode (server unavailable)");
   return generateMockEmbedding(imageFile);
 }
 
 export async function checkHealth(): Promise<boolean> {
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
     const res = await fetch(`${HF_SPACE_URL}/health`, {
-      signal: AbortSignal.timeout(3000),
+      signal: controller.signal,
     });
-    serverReachable = res.ok;
+    clearTimeout(timeout);
     return res.ok;
   } catch {
-    serverReachable = false;
     return false;
   }
 }
 
-/** Call at app startup to pre-check server status */
+/** Call at app startup to pre-warm the server (fire and forget) */
 export function preCheckServer() {
   checkHealth().then((ok) => {
-    if (!ok) console.log("HF Space offline — will use demo mode");
+    if (!ok) console.log("HF Space not immediately available — will retry on analyze");
   });
 }
