@@ -1,4 +1,4 @@
-const SAMPLE_URLS = [
+export const SAMPLE_URLS = [
   "/samples/sample1.jpg",
   "/samples/sample2.jpg",
   "/samples/sample3.jpg",
@@ -24,4 +24,14 @@ export async function loadComparisonSamples(): Promise<[File, File]> {
   return [a, b];
 }
 
-export { SAMPLE_URLS };
+let cachedSampleEmbeddings: Float32Array[] | null = null;
+
+/** Load pre-computed CLIP embeddings for the 3 sample images */
+export async function loadSampleEmbeddings(): Promise<Float32Array[]> {
+  if (cachedSampleEmbeddings) return cachedSampleEmbeddings;
+
+  const res = await fetch("/data/sample_embeddings.json");
+  const data: number[][] = await res.json();
+  cachedSampleEmbeddings = data.map((arr) => new Float32Array(arr));
+  return cachedSampleEmbeddings;
+}

@@ -41,15 +41,24 @@ def health():
 
 @app.post("/embed")
 async def embed(file: UploadFile = File(...)):
-    contents = await file.read()
-    image = Image.open(io.BytesIO(contents)).convert("RGB")
+    try:
+        contents = await file.read()
+        image = Image.open(io.BytesIO(contents)).convert("RGB")
 
-    inputs = processor(images=image, return_tensors="pt")
-    with torch.no_grad():
-        outputs = model.get_image_features(**inputs)
+        inputs = processor(images=image, return_tensors="pt")
+        with torch.no_grad():
+            outputs = model.get_image_features(**inputs)
 
-    # outputs shape: (1, 512) — squeeze to (512,), then L2-normalize
-    embedding = outputs.squeeze(0).numpy()
-    embedding = embedding / np.linalg.norm(embedding)
+        # Handle both tensor and BaseModelOutputWithPooling
+        if hasattr(outputs, "pooler_output"):
+            embedding = outputs.pooler_output.squeeze(0).cpu().numpy().astype(float)
+        else:
+            embedding = outputs.squeeze(0).cpu().numpy().astype(float)
+        norm = float(np.linalg.norm(embedding))
+        if norm > 0:
+            embedding = embedding / norm
 
-    return {"embedding": embedding.tolist()}
+        return {"embedding": [float(x) for x in embedding]}
+    except Exception as e:
+        import traceback
+        return {"error": str(e), "traceback": traceback.format_exc()}

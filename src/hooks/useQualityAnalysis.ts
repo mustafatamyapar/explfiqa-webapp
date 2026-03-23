@@ -110,6 +110,45 @@ export function useQualityAnalysis() {
     });
   }, []);
 
+  /** Core transparency computation from an embedding */
+  const computeTransparencyFromEmbedding = useCallback(
+    (embedding: Float32Array, imageUrl: string): TransparencyResult => {
+      if (!staticData) throw new Error("Data not loaded");
+
+      const { embeddings, embeddingShape } = staticData;
+      const similarities = computeSimilarities(
+        embedding,
+        embeddings,
+        embeddingShape[0],
+        embeddingShape[1]
+      );
+
+      const qualityScore = computeQualityScore(
+        similarities,
+        staticData.weights.weights,
+        staticData.weights.bias
+      );
+
+      const chartData = buildTransparencyChartData(
+        similarities,
+        staticData.weights.weights,
+        staticData.prompts,
+        staticData.categoryMeta,
+        staticData.globalOrder,
+        staticData.categoryBoundaries
+      );
+
+      const topPrompts = getTopContributingPrompts(
+        similarities,
+        staticData.weights.weights,
+        staticData.prompts
+      );
+
+      return { chartData, qualityScore, topPrompts, imageUrl };
+    },
+    [staticData]
+  );
+
   const analyzeTransparency = useCallback(
     async (imageFile: File): Promise<TransparencyResult> => {
       if (!staticData) throw new Error("Data not loaded");
@@ -119,23 +158,45 @@ export function useQualityAnalysis() {
       try {
         const embedding = await getImageEmbedding(imageFile, setStatus);
         setStatus("Computing analysis...");
+        const imageUrl = URL.createObjectURL(imageFile);
+        return computeTransparencyFromEmbedding(embedding, imageUrl);
+      } finally {
+        setAnalyzing(false);
+        setStatus("");
+      }
+    },
+    [staticData, computeTransparencyFromEmbedding]
+  );
 
-        const { embeddings, embeddingShape } = staticData;
-        const similarities = computeSimilarities(
-          embedding,
-          embeddings,
-          embeddingShape[0],
-          embeddingShape[1]
-        );
+  /** Analyze using a pre-computed embedding (no API call) */
+  const analyzeTransparencyFromEmbedding = useCallback(
+    (embedding: Float32Array, imageUrl: string): TransparencyResult => {
+      return computeTransparencyFromEmbedding(embedding, imageUrl);
+    },
+    [computeTransparencyFromEmbedding]
+  );
 
-        const qualityScore = computeQualityScore(
-          similarities,
-          staticData.weights.weights,
-          staticData.weights.bias
-        );
+  /** Core comparison computation from two embeddings */
+  const computeComparisonFromEmbeddings = useCallback(
+    (
+      embA: Float32Array,
+      embB: Float32Array,
+      imageUrlA: string,
+      imageUrlB: string
+    ): ComparisonResult => {
+      if (!staticData) throw new Error("Data not loaded");
 
-        const chartData = buildTransparencyChartData(
-          similarities,
+      const { embeddings, embeddingShape } = staticData;
+      const simA = computeSimilarities(embA, embeddings, embeddingShape[0], embeddingShape[1]);
+      const simB = computeSimilarities(embB, embeddings, embeddingShape[0], embeddingShape[1]);
+
+      const scoreA = computeQualityScore(simA, staticData.weights.weights, staticData.weights.bias);
+      const scoreB = computeQualityScore(simB, staticData.weights.weights, staticData.weights.bias);
+
+      const { simDiffData, weightedDiffData, negativeDiffData } =
+        buildComparisonChartData(
+          simA,
+          simB,
           staticData.weights.weights,
           staticData.prompts,
           staticData.categoryMeta,
@@ -143,19 +204,15 @@ export function useQualityAnalysis() {
           staticData.categoryBoundaries
         );
 
-        const topPrompts = getTopContributingPrompts(
-          similarities,
-          staticData.weights.weights,
-          staticData.prompts
-        );
-
-        const imageUrl = URL.createObjectURL(imageFile);
-
-        return { chartData, qualityScore, topPrompts, imageUrl };
-      } finally {
-        setAnalyzing(false);
-        setStatus("");
-      }
+      return {
+        simDiffData,
+        weightedDiffData,
+        negativeDiffData,
+        scoreA,
+        scoreB,
+        imageUrlA,
+        imageUrlB,
+      };
     },
     [staticData]
   );
@@ -176,39 +233,31 @@ export function useQualityAnalysis() {
         const embB = await getImageEmbedding(imageFileB, setStatus);
 
         setStatus("Computing comparison...");
-        const { embeddings, embeddingShape } = staticData;
-        const simA = computeSimilarities(embA, embeddings, embeddingShape[0], embeddingShape[1]);
-        const simB = computeSimilarities(embB, embeddings, embeddingShape[0], embeddingShape[1]);
-
-        const scoreA = computeQualityScore(simA, staticData.weights.weights, staticData.weights.bias);
-        const scoreB = computeQualityScore(simB, staticData.weights.weights, staticData.weights.bias);
-
-        const { simDiffData, weightedDiffData, negativeDiffData } =
-          buildComparisonChartData(
-            simA,
-            simB,
-            staticData.weights.weights,
-            staticData.prompts,
-            staticData.categoryMeta,
-            staticData.globalOrder,
-            staticData.categoryBoundaries
-          );
-
-        return {
-          simDiffData,
-          weightedDiffData,
-          negativeDiffData,
-          scoreA,
-          scoreB,
-          imageUrlA: URL.createObjectURL(imageFileA),
-          imageUrlB: URL.createObjectURL(imageFileB),
-        };
+        return computeComparisonFromEmbeddings(
+          embA,
+          embB,
+          URL.createObjectURL(imageFileA),
+          URL.createObjectURL(imageFileB)
+        );
       } finally {
         setAnalyzing(false);
         setStatus("");
       }
     },
-    [staticData]
+    [staticData, computeComparisonFromEmbeddings]
+  );
+
+  /** Compare using pre-computed embeddings (no API call) */
+  const analyzeComparisonFromEmbeddings = useCallback(
+    (
+      embA: Float32Array,
+      embB: Float32Array,
+      imageUrlA: string,
+      imageUrlB: string
+    ): ComparisonResult => {
+      return computeComparisonFromEmbeddings(embA, embB, imageUrlA, imageUrlB);
+    },
+    [computeComparisonFromEmbeddings]
   );
 
   return {
@@ -217,6 +266,8 @@ export function useQualityAnalysis() {
     status,
     staticData,
     analyzeTransparency,
+    analyzeTransparencyFromEmbedding,
     analyzeComparison,
+    analyzeComparisonFromEmbeddings,
   };
 }

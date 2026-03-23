@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ImageUploader } from "@/components/ImageUploader";
@@ -10,11 +10,11 @@ import {
   useQualityAnalysis,
   type TransparencyResult,
 } from "@/hooks/useQualityAnalysis";
-import { loadSampleImages, SAMPLE_URLS } from "@/lib/samples";
+import { loadSampleImages, loadSampleEmbeddings, SAMPLE_URLS } from "@/lib/samples";
 import { Loader2 } from "lucide-react";
 
 export function TransparencyPage() {
-  const { loading, analyzing, status, staticData, analyzeTransparency } =
+  const { loading, analyzing, status, staticData, analyzeTransparency, analyzeTransparencyFromEmbedding } =
     useQualityAnalysis();
 
   const [imageFiles, setImageFiles] = useState<(File | null)[]>([
@@ -33,6 +33,7 @@ export function TransparencyPage() {
     null,
   ]);
   const [samplesLoaded, setSamplesLoaded] = useState(false);
+  const autoAnalyzedRef = useRef(false);
 
   // Pre-load sample images on mount
   useEffect(() => {
@@ -42,6 +43,23 @@ export function TransparencyPage() {
       setSamplesLoaded(true);
     });
   }, []);
+
+  // Auto-analyze sample images using pre-computed embeddings (instant, no API)
+  useEffect(() => {
+    if (!samplesLoaded || !staticData || autoAnalyzedRef.current) return;
+    autoAnalyzedRef.current = true;
+
+    loadSampleEmbeddings().then((embeddings) => {
+      const newResults: (TransparencyResult | null)[] = [null, null, null];
+      for (let i = 0; i < 3; i++) {
+        newResults[i] = analyzeTransparencyFromEmbedding(
+          embeddings[i],
+          SAMPLE_URLS[i]
+        );
+      }
+      setResults(newResults);
+    });
+  }, [samplesLoaded, staticData, analyzeTransparencyFromEmbedding]);
 
   const handleImageSelected = useCallback(
     (index: number, file: File) => {
@@ -108,9 +126,9 @@ export function TransparencyPage() {
           highlighted; the top-3 contributing categories are outlined in{" "}
           <span className="text-red-600 font-semibold">red</span>.
         </p>
-        {samplesLoaded && !hasResults && (
+        {samplesLoaded && !hasResults && !analyzing && (
           <p className="text-xs text-muted-foreground mt-1 italic">
-            Sample images are pre-loaded — click Analyze to try, or upload your own.
+            Upload your own images or wait for sample analysis to complete.
           </p>
         )}
       </div>

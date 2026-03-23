@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ImageUploader } from "@/components/ImageUploader";
@@ -9,11 +9,11 @@ import {
   useQualityAnalysis,
   type ComparisonResult,
 } from "@/hooks/useQualityAnalysis";
-import { loadComparisonSamples, SAMPLE_URLS } from "@/lib/samples";
+import { loadComparisonSamples, loadSampleEmbeddings, SAMPLE_URLS } from "@/lib/samples";
 import { Loader2 } from "lucide-react";
 
 export function ComparisonPage() {
-  const { loading, analyzing, status, staticData, analyzeComparison } =
+  const { loading, analyzing, status, staticData, analyzeComparison, analyzeComparisonFromEmbeddings } =
     useQualityAnalysis();
 
   const [fileA, setFileA] = useState<File | null>(null);
@@ -22,6 +22,7 @@ export function ComparisonPage() {
   const [previewB, setPreviewB] = useState<string | undefined>();
   const [result, setResult] = useState<ComparisonResult | null>(null);
   const [samplesLoaded, setSamplesLoaded] = useState(false);
+  const autoAnalyzedRef = useRef(false);
 
   // Pre-load sample images on mount (image 1 vs image 3)
   useEffect(() => {
@@ -33,6 +34,23 @@ export function ComparisonPage() {
       setSamplesLoaded(true);
     });
   }, []);
+
+  // Auto-analyze using pre-computed embeddings (instant, no API)
+  useEffect(() => {
+    if (!samplesLoaded || !staticData || autoAnalyzedRef.current) return;
+    autoAnalyzedRef.current = true;
+
+    loadSampleEmbeddings().then((embeddings) => {
+      // Comparison uses sample 1 vs sample 3
+      const res = analyzeComparisonFromEmbeddings(
+        embeddings[0],
+        embeddings[2],
+        SAMPLE_URLS[0],
+        SAMPLE_URLS[2]
+      );
+      setResult(res);
+    });
+  }, [samplesLoaded, staticData, analyzeComparisonFromEmbeddings]);
 
   const handleSelectA = useCallback((file: File) => {
     setFileA(file);
@@ -85,9 +103,9 @@ export function ComparisonPage() {
           contribution difference are outlined in{" "}
           <span className="text-red-600 font-semibold">red</span>.
         </p>
-        {samplesLoaded && !result && (
+        {samplesLoaded && !result && !analyzing && (
           <p className="text-xs text-muted-foreground mt-1 italic">
-            Sample images are pre-loaded — click Compare to try, or upload your own.
+            Upload your own images or wait for sample analysis to complete.
           </p>
         )}
       </div>
