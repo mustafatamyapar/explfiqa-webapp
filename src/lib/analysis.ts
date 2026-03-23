@@ -189,7 +189,9 @@ export function buildComparisonChartData(
 }
 
 /**
- * Get top N categories by total absolute contribution (for highlight boxes).
+ * Get top N categories by total absolute contribution from top-384 prompts only.
+ * Only prompts in the top-384 (isTopK) contribute to the quality score,
+ * so only those should determine which categories are highlighted.
  */
 export function getTopCategories(
   chartData: ChartData,
@@ -197,6 +199,7 @@ export function getTopCategories(
 ): string[] {
   const catContrib: Record<string, number> = {};
   for (const bar of chartData.bars) {
+    if (!bar.isTopK) continue;
     catContrib[bar.category] = (catContrib[bar.category] || 0) + Math.abs(bar.value);
   }
   return Object.entries(catContrib)
