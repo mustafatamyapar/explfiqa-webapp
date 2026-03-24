@@ -5,31 +5,37 @@ interface TopPromptsListProps {
   negative: ChartBar[];
 }
 
+/** Strip the first word (e.g. "person") to save space */
+function trimFirst(text: string): string {
+  const idx = text.indexOf(" ");
+  return idx > 0 ? text.slice(idx + 1) : text;
+}
+
 export function TopPromptsList({ positive, negative }: TopPromptsListProps) {
   return (
-    <div className="text-xs space-y-2 px-2">
-      <div>
-        <p className="font-semibold text-green-700 mb-1">Top positive contributions:</p>
-        {positive.map((p, i) => (
-          <p key={i} className="text-green-600 truncate">
-            +{i + 1} {p.shortText}{" "}
-            <span className="text-muted-foreground">
-              (s={p.similarity.toFixed(2)}, v={p.value >= 0 ? "+" : ""}{p.value.toFixed(4)})
-            </span>
-          </p>
-        ))}
-      </div>
-      <div>
-        <p className="font-semibold text-red-700 mb-1">Top negative contributions:</p>
-        {negative.map((p, i) => (
-          <p key={i} className="text-red-600 truncate">
-            -{i + 1} {p.shortText}{" "}
-            <span className="text-muted-foreground">
-              (s={p.similarity.toFixed(2)}, v={p.value >= 0 ? "+" : ""}{p.value.toFixed(4)})
-            </span>
-          </p>
-        ))}
-      </div>
+    <div className="w-full text-left space-y-1.5">
+      <p
+        className="text-[9px] font-semibold text-green-700"
+        style={{ fontFamily: "'Times New Roman', 'DejaVu Serif', Georgia, serif" }}
+      >
+        Top 3:
+      </p>
+      {positive.map((p, i) => (
+        <p key={`p${i}`} className="text-[8px] leading-tight text-green-600 truncate">
+          {trimFirst(p.shortText)}
+        </p>
+      ))}
+      <p
+        className="text-[9px] font-semibold text-red-700 pt-0.5"
+        style={{ fontFamily: "'Times New Roman', 'DejaVu Serif', Georgia, serif" }}
+      >
+        Bottom 3:
+      </p>
+      {negative.map((p, i) => (
+        <p key={`n${i}`} className="text-[8px] leading-tight text-red-600 truncate">
+          {trimFirst(p.shortText)}
+        </p>
+      ))}
     </div>
   );
 }
