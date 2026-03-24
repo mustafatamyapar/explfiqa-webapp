@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TransparencyPage } from "@/pages/TransparencyPage";
 import { ComparisonPage } from "@/pages/ComparisonPage";
+import { PasswordGate } from "@/components/PasswordGate";
 import { preCheckServer } from "@/lib/api";
 
 // Pre-check HF Space on app load so we know immediately if we need demo mode
@@ -55,13 +56,15 @@ function Layout({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Layout>
-        <Routes>
-          <Route path="/" element={<TransparencyPage />} />
-          <Route path="/comparison" element={<ComparisonPage />} />
-        </Routes>
-      </Layout>
-    </BrowserRouter>
+    <PasswordGate>
+      <BrowserRouter>
+        <Layout>
+          <Routes>
+            <Route path="/" element={<TransparencyPage />} />
+            <Route path="/comparison" element={<ComparisonPage />} />
+          </Routes>
+        </Layout>
+      </BrowserRouter>
+    </PasswordGate>
   );
 }
